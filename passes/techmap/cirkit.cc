@@ -18,12 +18,6 @@
  *
  */
 
-#define CIRKIT_COMMAND_LIB "strash; ifraig; scorr; dc2; dretime; retime {D}; strash; &get -n; &dch -f; &nf {D}; &put"
-#define CIRKIT_COMMAND_CTR "strash; ifraig; scorr; dc2; dretime; retime {D}; strash; &get -n; &dch -f; &nf {D}; &put; buffer; upsize {D}; dnsize {D}; stime -p"
-#define CIRKIT_COMMAND_LUT "strash; ifraig; scorr; dc2; dretime; retime {D}; strash; dch -f; if; mfs2"
-#define CIRKIT_COMMAND_SOP "strash; ifraig; scorr; dc2; dretime; retime {D}; strash; dch -f; cover {I} {P}"
-#define CIRKIT_COMMAND_DFL "strash; ifraig; scorr; dc2; dretime; retime {D}; strash; &get -n; &dch -f; &nf {D}; &put"
-
 #include "kernel/register.h"
 #include "kernel/sigtools.h"
 #include "kernel/celltypes.h"
@@ -514,47 +508,6 @@ void handle_loops()
 		fclose(dot_f);
 }
 
-std::string add_echos_to_cirkit_cmd(std::string str)
-{
-	std::string new_str, token;
-	for (size_t i = 0; i < str.size(); i++) {
-		token += str[i];
-		if (str[i] == ';') {
-			while (i+1 < str.size() && str[i+1] == ' ')
-				i++;
-			new_str += "echo + " + token + " " + token + " ";
-			token.clear();
-		}
-	}
-
-	if (!token.empty()) {
-		if (!new_str.empty())
-			new_str += "echo + " + token + "; ";
-		new_str += token;
-	}
-
-	return new_str;
-}
-
-std::string fold_cirkit_cmd(std::string str)
-{
-	std::string token, new_str = "          ";
-	int char_counter = 10;
-
-	for (size_t i = 0; i <= str.size(); i++) {
-		if (i < str.size())
-			token += str[i];
-		if (i == str.size() || str[i] == ';') {
-			if (char_counter + token.size() > 75)
-				new_str += "\n              ", char_counter = 14;
-			new_str += token, char_counter += token.size();
-			token.clear();
-		}
-	}
-
-	return new_str;
-}
-
 std::string replace_tempdir(std::string text, std::string tempdir_name, bool show_tempdir)
 {
 	if (show_tempdir)
@@ -640,9 +593,8 @@ struct cirkit_output_filter
 };
 
 void cirkit_module(RTLIL::Design *design, RTLIL::Module *current_module, std::string script_file, std::string exe_file,
-		std::string liberty_file, std::string constr_file, bool cleanup, vector<int> lut_costs, bool dff_mode, std::string clk_str,
-		bool keepff, std::string delay_target, std::string sop_inputs, std::string sop_products, std::string lutin_shared,
-		const std::vector<RTLIL::Cell*> &cells, bool show_tempdir, bool sop_mode, bool cirkit_dress)
+		std::string liberty_file, bool cleanup, vector<int> lut_costs, std::string clk_str,
+		bool keepff, const std::vector<RTLIL::Cell*> &cells, bool show_tempdir)
 {
 	module = current_module;
 	map_autoidx = autoidx++;
@@ -683,9 +635,6 @@ void cirkit_module(RTLIL::Design *design, RTLIL::Module *current_module, std::st
 			clk_sig = assign_map(RTLIL::SigSpec(module->wires_.at(RTLIL::escape_id(clk_str)), 0));
 	}
 
-	if (dff_mode && clk_sig.empty())
-		log_cmd_error("Clock domain %s not found.\n", clk_str.c_str());
-
 	std::string tempdir_name = "/tmp/yosys-cirkit-XXXXXX";
 	if (!cleanup)
 		tempdir_name[0] = tempdir_name[4] = '_';
@@ -710,7 +659,7 @@ void cirkit_module(RTLIL::Design *design, RTLIL::Module *current_module, std::st
 	fprintf(f, "%s\n", cirkit_script.c_str());
 	fclose(f);
 
-	if (dff_mode || !clk_str.empty())
+	if (!clk_str.empty())
 	{
 		if (clk_sig.size() == 0)
 			log("No%s clock domain found. Not extracting any FF cells.\n", clk_str.empty() ? "" : " matching");
@@ -945,7 +894,7 @@ void cirkit_module(RTLIL::Design *design, RTLIL::Module *current_module, std::st
 
 		bool builtin_lib = liberty_file.empty();
 		RTLIL::Design *mapped_design = new RTLIL::Design;
-		parse_blif(mapped_design, ifs, builtin_lib ? "\\DFF" : "\\_dff_", false, sop_mode);
+		parse_blif(mapped_design, ifs, builtin_lib ? "\\DFF" : "\\_dff_", false, false);
 
 		ifs.close();
 
@@ -1236,114 +1185,7 @@ struct CirkitPass : public Pass {
 		log("        This can e.g. be used to call a specific version of CIRKIT or a wrapper.\n");
 		log("\n");
 		log("    -script <file>\n");
-		log("        use the specified CIRKIT script file instead of the default script.\n");
-		log("\n");
-		log("        if <file> starts with a plus sign (+), then the rest of the filename\n");
-		log("        string is interpreted as the command string to be passed to CIRKIT. The\n");
-		log("        leading plus sign is removed and all commas (,) in the string are\n");
-		log("        replaced with blanks before the string is passed to CIRKIT.\n");
-		log("\n");
-		log("        if no -script parameter is given, the following scripts are used:\n");
-		log("\n");
-		log("        for -liberty without -constr:\n");
-		log("%s\n", fold_cirkit_cmd(CIRKIT_COMMAND_LIB).c_str());
-		log("\n");
-		log("        for -liberty with -constr:\n");
-		log("%s\n", fold_cirkit_cmd(CIRKIT_COMMAND_CTR).c_str());
-		log("\n");
-		log("        for -lut/-luts (only one LUT size):\n");
-		log("%s\n", fold_cirkit_cmd(CIRKIT_COMMAND_LUT "; lutpack {S}").c_str());
-		log("\n");
-		log("        for -lut/-luts (different LUT sizes):\n");
-		log("%s\n", fold_cirkit_cmd(CIRKIT_COMMAND_LUT).c_str());
-		log("\n");
-		log("        for -sop:\n");
-		log("%s\n", fold_cirkit_cmd(CIRKIT_COMMAND_SOP).c_str());
-		log("\n");
-		log("        otherwise:\n");
-		log("%s\n", fold_cirkit_cmd(CIRKIT_COMMAND_DFL).c_str());
-		log("\n");
-		log("    -liberty <file>\n");
-		log("        generate netlists for the specified cell library (using the liberty\n");
-		log("        file format).\n");
-		log("\n");
-		log("    -constr <file>\n");
-		log("        pass this file with timing constraints to CIRKIT. use with -liberty.\n");
-		log("\n");
-		log("        a constr file contains two lines:\n");
-		log("            set_driving_cell <cell_name>\n");
-		log("            set_load <floating_point_number>\n");
-		log("\n");
-		log("        the set_driving_cell statement defines which cell type is assumed to\n");
-		log("        drive the primary inputs and the set_load statement sets the load in\n");
-		log("        femtofarads for each primary output.\n");
-		log("\n");
-		log("    -D <picoseconds>\n");
-		log("        set delay target. the string {D} in the default scripts above is\n");
-		log("        replaced by this option when used, and an empty string otherwise.\n");
-		log("        this also replaces 'dretime' with 'dretime; retime -o {D}' in the\n");
-		log("        default scripts above.\n");
-		log("\n");
-		log("    -I <num>\n");
-		log("        maximum number of SOP inputs.\n");
-		log("        (replaces {I} in the default scripts above)\n");
-		log("\n");
-		log("    -P <num>\n");
-		log("        maximum number of SOP products.\n");
-		log("        (replaces {P} in the default scripts above)\n");
-		log("\n");
-		log("    -S <num>\n");
-		log("        maximum number of LUT inputs shared.\n");
-		log("        (replaces {S} in the default scripts above, default: -S 1)\n");
-		log("\n");
-		log("    -lut <width>\n");
-		log("        generate netlist using luts of (max) the specified width.\n");
-		log("\n");
-		log("    -lut <w1>:<w2>\n");
-		log("        generate netlist using luts of (max) the specified width <w2>. All\n");
-		log("        luts with width <= <w1> have constant cost. for luts larger than <w1>\n");
-		log("        the area cost doubles with each additional input bit. the delay cost\n");
-		log("        is still constant for all lut widths.\n");
-		log("\n");
-		log("    -luts <cost1>,<cost2>,<cost3>,<sizeN>:<cost4-N>,..\n");
-		log("        generate netlist using luts. Use the specified costs for luts with 1,\n");
-		log("        2, 3, .. inputs.\n");
-		log("\n");
-		log("    -sop\n");
-		log("        map to sum-of-product cells and inverters\n");
-		log("\n");
-		// log("    -mux4, -mux8, -mux16\n");
-		// log("        try to extract 4-input, 8-input, and/or 16-input muxes\n");
-		// log("        (ignored when used with -liberty or -lut)\n");
-		// log("\n");
-		log("    -g type1,type2,...\n");
-		log("        Map to the specified list of gate types. Supported gates types are:\n");
-		log("        AND, NAND, OR, NOR, XOR, XNOR, ANDNOT, ORNOT, MUX, AOI3, OAI3, AOI4, OAI4.\n");
-		log("        (The NOT gate is always added to this list automatically.)\n");
-		log("\n");
-		log("        The following aliases can be used to reference common sets of gate types:\n");
-		log("          simple: AND OR XOR MUX\n");
-		log("          cmos2: NAND NOR\n");
-		log("          cmos3: NAND NOR AOI3 OAI3\n");
-		log("          cmos4: NAND NOR AOI3 OAI3 AOI4 OAI4\n");
-		log("          gates: AND NAND OR NOR XOR XNOR ANDNOT ORNOT\n");
-		log("          aig: AND NAND OR NOR ANDNOT ORNOT\n");
-		log("\n");
-		log("        Prefix a gate type with a '-' to remove it from the list. For example\n");
-		log("        the arguments 'AND,OR,XOR' and 'simple,-MUX' are equivalent.\n");
-		log("\n");
-		log("    -dff\n");
-		log("        also pass $_DFF_?_ and $_DFFE_??_ cells through CIRKIT. modules with many\n");
-		log("        clock domains are automatically partitioned in clock domains and each\n");
-		log("        domain is passed through CIRKIT independently.\n");
-		log("\n");
-		log("    -clk [!]<clock-signal-name>[,[!]<enable-signal-name>]\n");
-		log("        use only the specified clock domain. this is like -dff, but only FF\n");
-		log("        cells that belong to the specified clock domain are used.\n");
-		log("\n");
-		log("    -keepff\n");
-		log("        set the \"keep\" attribute on flip-flop output wires. (and thus preserve\n");
-		log("        them, for example for equivalence checking.)\n");
+		log("        use the specified CIRKIT script file.\n");
 		log("\n");
 		log("    -nocleanup\n");
 		log("        when this option is used, the temporary files created by this pass\n");
@@ -1353,18 +1195,6 @@ struct CirkitPass : public Pass {
 		log("        print the temp dir name in log. usually this is suppressed so that the\n");
 		log("        command output is identical across runs.\n");
 		log("\n");
-		log("    -markgroups\n");
-		log("        set a 'cirkitgroup' attribute on all objects created by CIRKIT. The value of\n");
-		log("        this attribute is a unique integer for each CIRKIT process started. This\n");
-		log("        is useful for debugging the partitioning of clock domains.\n");
-		log("\n");
-		log("    -dress\n");
-		log("        run the 'dress' command after all other CIRKIT commands. This aims to\n");
-		log("        preserve naming by an equivalence check between the original and post-CIRKIT\n");
-		log("        netlists (experimental).\n");
-		log("\n");
-		log("When neither -liberty nor -lut is used, the Yosys standard cell library is\n");
-		log("loaded into CIRKIT before the CIRKIT script is executed.\n");
 		log("\n");
 		log("Note that this is a logic optimization pass within Yosys that is calling CIRKIT\n");
 		log("internally. This is not going to \"run CIRKIT on your design\". It will instead run\n");
@@ -1373,7 +1203,7 @@ struct CirkitPass : public Pass {
 		log("design as BLIF file with write_blif and then load that into CIRKIT externally if\n");
 		log("you want to use CIRKIT to convert your design into another format.\n");
 		log("\n");
-		log("[1] http://www.eecs.berkeley.edu/~alanmi/cirkit/\n");
+		log("[1] https://github.com/msoeken/cirkit\n");
 		log("\n");
 	}
 	void execute(std::vector<std::string> args, RTLIL::Design *design) YS_OVERRIDE
@@ -1393,11 +1223,9 @@ struct CirkitPass : public Pass {
 #else
 		std::string exe_file = proc_self_dirname() + "yosys-cirkit";
 #endif
-		std::string script_file, liberty_file, constr_file, clk_str;
-		std::string delay_target, sop_inputs, sop_products, lutin_shared = "-S 1";
-		bool dff_mode = false, keepff = false, cleanup = true;
-		bool show_tempdir = false, sop_mode = false;
-		bool cirkit_dress = false;
+		std::string script_file, liberty_file, clk_str;
+		bool keepff = false, cleanup = true;
+		bool show_tempdir = false;
 		vector<int> lut_costs;
 		markgroups = false;
 
@@ -1432,185 +1260,6 @@ struct CirkitPass : public Pass {
 					script_file = std::string(pwd) + "/" + script_file;
 				continue;
 			}
-			if (arg == "-liberty" && argidx+1 < args.size()) {
-				liberty_file = args[++argidx];
-				rewrite_filename(liberty_file);
-				if (!liberty_file.empty() && !is_absolute_path(liberty_file))
-					liberty_file = std::string(pwd) + "/" + liberty_file;
-				continue;
-			}
-			if (arg == "-constr" && argidx+1 < args.size()) {
-				rewrite_filename(constr_file);
-				constr_file = args[++argidx];
-				if (!constr_file.empty() && !is_absolute_path(constr_file))
-					constr_file = std::string(pwd) + "/" + constr_file;
-				continue;
-			}
-			if (arg == "-D" && argidx+1 < args.size()) {
-				delay_target = "-D " + args[++argidx];
-				continue;
-			}
-			if (arg == "-I" && argidx+1 < args.size()) {
-				sop_inputs = "-I " + args[++argidx];
-				continue;
-			}
-			if (arg == "-P" && argidx+1 < args.size()) {
-				sop_products = "-P " + args[++argidx];
-				continue;
-			}
-			if (arg == "-S" && argidx+1 < args.size()) {
-				lutin_shared = "-S " + args[++argidx];
-				continue;
-			}
-			if (arg == "-lut" && argidx+1 < args.size()) {
-				string arg = args[++argidx];
-				size_t pos = arg.find_first_of(':');
-				int lut_mode = 0, lut_mode2 = 0;
-				if (pos != string::npos) {
-					lut_mode = atoi(arg.substr(0, pos).c_str());
-					lut_mode2 = atoi(arg.substr(pos+1).c_str());
-				} else {
-					lut_mode = atoi(arg.c_str());
-					lut_mode2 = lut_mode;
-				}
-				lut_costs.clear();
-				for (int i = 0; i < lut_mode; i++)
-					lut_costs.push_back(1);
-				for (int i = lut_mode; i < lut_mode2; i++)
-					lut_costs.push_back(2 << (i - lut_mode));
-				continue;
-			}
-			if (arg == "-luts" && argidx+1 < args.size()) {
-				lut_costs.clear();
-				for (auto &tok : split_tokens(args[++argidx], ",")) {
-					auto parts = split_tokens(tok, ":");
-					if (GetSize(parts) == 0 && !lut_costs.empty())
-						lut_costs.push_back(lut_costs.back());
-					else if (GetSize(parts) == 1)
-						lut_costs.push_back(atoi(parts.at(0).c_str()));
-					else if (GetSize(parts) == 2)
-						while (GetSize(lut_costs) < atoi(parts.at(0).c_str()))
-							lut_costs.push_back(atoi(parts.at(1).c_str()));
-					else
-						log_cmd_error("Invalid -luts syntax.\n");
-				}
-				continue;
-			}
-			if (arg == "-sop") {
-				sop_mode = true;
-				continue;
-			}
-			if (arg == "-mux4") {
-				map_mux4 = true;
-				continue;
-			}
-			if (arg == "-mux8") {
-				map_mux8 = true;
-				continue;
-			}
-			if (arg == "-mux16") {
-				map_mux16 = true;
-				continue;
-			}
-			if (arg == "-dress") {
-				cirkit_dress = true;
-				continue;
-			}
-			if (arg == "-g" && argidx+1 < args.size()) {
-				for (auto g : split_tokens(args[++argidx], ",")) {
-					vector<string> gate_list;
-					bool remove_gates = false;
-					if (GetSize(g) > 0 && g[0] == '-') {
-						remove_gates = true;
-						g = g.substr(1);
-					}
-					if (g == "AND") goto ok_gate;
-					if (g == "NAND") goto ok_gate;
-					if (g == "OR") goto ok_gate;
-					if (g == "NOR") goto ok_gate;
-					if (g == "XOR") goto ok_gate;
-					if (g == "XNOR") goto ok_gate;
-					if (g == "ANDNOT") goto ok_gate;
-					if (g == "ORNOT") goto ok_gate;
-					if (g == "MUX") goto ok_gate;
-					if (g == "AOI3") goto ok_gate;
-					if (g == "OAI3") goto ok_gate;
-					if (g == "AOI4") goto ok_gate;
-					if (g == "OAI4") goto ok_gate;
-					if (g == "simple") {
-						gate_list.push_back("AND");
-						gate_list.push_back("OR");
-						gate_list.push_back("XOR");
-						gate_list.push_back("MUX");
-						goto ok_alias;
-					}
-					if (g == "cmos2") {
-						gate_list.push_back("NAND");
-						gate_list.push_back("NOR");
-						goto ok_alias;
-					}
-					if (g == "cmos3") {
-						gate_list.push_back("NAND");
-						gate_list.push_back("NOR");
-						gate_list.push_back("AOI3");
-						gate_list.push_back("OAI3");
-						goto ok_alias;
-					}
-					if (g == "cmos4") {
-						gate_list.push_back("NAND");
-						gate_list.push_back("NOR");
-						gate_list.push_back("AOI3");
-						gate_list.push_back("OAI3");
-						gate_list.push_back("AOI4");
-						gate_list.push_back("OAI4");
-						goto ok_alias;
-					}
-					if (g == "gates") {
-						gate_list.push_back("AND");
-						gate_list.push_back("NAND");
-						gate_list.push_back("OR");
-						gate_list.push_back("NOR");
-						gate_list.push_back("XOR");
-						gate_list.push_back("XNOR");
-						gate_list.push_back("ANDNOT");
-						gate_list.push_back("ORNOT");
-						goto ok_alias;
-					}
-					if (g == "aig") {
-						gate_list.push_back("AND");
-						gate_list.push_back("NAND");
-						gate_list.push_back("OR");
-						gate_list.push_back("NOR");
-						gate_list.push_back("ANDNOT");
-						gate_list.push_back("ORNOT");
-						goto ok_alias;
-					}
-					cmd_error(args, argidx, stringf("Unsupported gate type: %s", g.c_str()));
-				ok_gate:
-					gate_list.push_back(g);
-				ok_alias:
-					for (auto gate : gate_list) {
-						if (remove_gates)
-							enabled_gates.erase(gate);
-						else
-							enabled_gates.insert(gate);
-					}
-				}
-				continue;
-			}
-			if (arg == "-dff") {
-				dff_mode = true;
-				continue;
-			}
-			if (arg == "-clk" && argidx+1 < args.size()) {
-				clk_str = args[++argidx];
-				dff_mode = true;
-				continue;
-			}
-			if (arg == "-keepff") {
-				keepff = true;
-				continue;
-			}
 			if (arg == "-nocleanup") {
 				cleanup = false;
 				continue;
@@ -1619,18 +1268,12 @@ struct CirkitPass : public Pass {
 				show_tempdir = true;
 				continue;
 			}
-			if (arg == "-markgroups") {
-				markgroups = true;
-				continue;
-			}
 			break;
 		}
 		extra_args(args, argidx, design);
 
 		if (!lut_costs.empty() && !liberty_file.empty())
 			log_cmd_error("Got -lut and -liberty! This two options are exclusive.\n");
-		if (!constr_file.empty() && liberty_file.empty())
-			log_cmd_error("Got -constr but no -liberty!\n");
 
 		for (auto mod : design->selected_modules())
 		{
@@ -1659,9 +1302,9 @@ struct CirkitPass : public Pass {
 						}
 				}
 
-			if (!dff_mode || !clk_str.empty()) {
-				cirkit_module(design, mod, script_file, exe_file, liberty_file, constr_file, cleanup, lut_costs, dff_mode, clk_str, keepff,
-						delay_target, sop_inputs, sop_products, lutin_shared, mod->selected_cells(), show_tempdir, sop_mode, cirkit_dress);
+			if (true || !clk_str.empty()) {
+				cirkit_module(design, mod, script_file, exe_file, liberty_file, cleanup, lut_costs, clk_str, keepff,
+					      mod->selected_cells(), show_tempdir);
 				continue;
 			}
 
@@ -1805,8 +1448,8 @@ struct CirkitPass : public Pass {
 				clk_sig = assign_map(std::get<1>(it.first));
 				en_polarity = std::get<2>(it.first);
 				en_sig = assign_map(std::get<3>(it.first));
-				cirkit_module(design, mod, script_file, exe_file, liberty_file, constr_file, cleanup, lut_costs, !clk_sig.empty(), "$",
-						keepff, delay_target, sop_inputs, sop_products, lutin_shared, it.second, show_tempdir, sop_mode, cirkit_dress);
+				cirkit_module(design, mod, script_file, exe_file, liberty_file, cleanup, lut_costs, "$",
+					      keepff, it.second, show_tempdir);
 				assign_map.set(mod);
 			}
 		}
