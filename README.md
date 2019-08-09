@@ -1,6 +1,6 @@
 This repository is a clone of yosys (Yosys Open SYnthesis Suite) extended with an experimental command `cirkit` that allows integrating logic optimisations of `mockturtle` in RTL synthesis.
 
-**Disclaimer**: The project is still under development and only conceptually demonstrates how the integration of `yosys` and `mockturtle` could work.  The `cirkit` command is heavily based on the `abc` command and makes only a few minor modifications to allow its users to run CirKit scripts in `yosys`. Consequently, the `cirkit` command inherets serveral arguments from the `abc` command which are not support.  Invoking the `cirkit` command with these arguments will lead to failure, incorrect results, or other undefined behavior.
+**Disclaimer**: The project is still under development and only conceptually demonstrates how the integration of `yosys` and `mockturtle` could work.  The `cirkit` command is heavily based on the `abc` command and makes only a few minor modifications to allow its users to run CirKit scripts in `yosys`. Consequently, the `cirkit` command inherets serveral options and flags from the `abc` command which are not support.  Invoking the `cirkit` command with these options and flags will lead to failure, incorrect results, or other undefined behavior.
 
 For further information, see
 * mockturtle: C++ logic network library, https://github.com/lsils/mockturtle
