@@ -24,12 +24,6 @@
 #define CIRKIT_COMMAND_SOP "strash; ifraig; scorr; dc2; dretime; retime {D}; strash; dch -f; cover {I} {P}"
 #define CIRKIT_COMMAND_DFL "strash; ifraig; scorr; dc2; dretime; retime {D}; strash; &get -n; &dch -f; &nf {D}; &put"
 
-#define CIRKIT_FAST_COMMAND_LIB "strash; dretime; retime {D}; map {D}"
-#define CIRKIT_FAST_COMMAND_CTR "strash; dretime; retime {D}; map {D}; buffer; upsize {D}; dnsize {D}; stime -p"
-#define CIRKIT_FAST_COMMAND_LUT "strash; dretime; retime {D}; if"
-#define CIRKIT_FAST_COMMAND_SOP "strash; dretime; retime {D}; cover -I {I} -P {P}"
-#define CIRKIT_FAST_COMMAND_DFL "strash; dretime; retime {D}; map"
-
 #include "kernel/register.h"
 #include "kernel/sigtools.h"
 #include "kernel/celltypes.h"
@@ -647,7 +641,7 @@ struct cirkit_output_filter
 
 void cirkit_module(RTLIL::Design *design, RTLIL::Module *current_module, std::string script_file, std::string exe_file,
 		std::string liberty_file, std::string constr_file, bool cleanup, vector<int> lut_costs, bool dff_mode, std::string clk_str,
-		bool keepff, std::string delay_target, std::string sop_inputs, std::string sop_products, std::string lutin_shared, bool fast_mode,
+		bool keepff, std::string delay_target, std::string sop_inputs, std::string sop_products, std::string lutin_shared,
 		const std::vector<RTLIL::Cell*> &cells, bool show_tempdir, bool sop_mode, bool cirkit_dress)
 {
 	module = current_module;
@@ -1269,25 +1263,6 @@ struct CirkitPass : public Pass {
 		log("        otherwise:\n");
 		log("%s\n", fold_cirkit_cmd(CIRKIT_COMMAND_DFL).c_str());
 		log("\n");
-		log("    -fast\n");
-		log("        use different default scripts that are slightly faster (at the cost\n");
-		log("        of output quality):\n");
-		log("\n");
-		log("        for -liberty without -constr:\n");
-		log("%s\n", fold_cirkit_cmd(CIRKIT_FAST_COMMAND_LIB).c_str());
-		log("\n");
-		log("        for -liberty with -constr:\n");
-		log("%s\n", fold_cirkit_cmd(CIRKIT_FAST_COMMAND_CTR).c_str());
-		log("\n");
-		log("        for -lut/-luts:\n");
-		log("%s\n", fold_cirkit_cmd(CIRKIT_FAST_COMMAND_LUT).c_str());
-		log("\n");
-		log("        for -sop:\n");
-		log("%s\n", fold_cirkit_cmd(CIRKIT_FAST_COMMAND_SOP).c_str());
-		log("\n");
-		log("        otherwise:\n");
-		log("%s\n", fold_cirkit_cmd(CIRKIT_FAST_COMMAND_DFL).c_str());
-		log("\n");
 		log("    -liberty <file>\n");
 		log("        generate netlists for the specified cell library (using the liberty\n");
 		log("        file format).\n");
@@ -1420,7 +1395,7 @@ struct CirkitPass : public Pass {
 #endif
 		std::string script_file, liberty_file, constr_file, clk_str;
 		std::string delay_target, sop_inputs, sop_products, lutin_shared = "-S 1";
-		bool fast_mode = false, dff_mode = false, keepff = false, cleanup = true;
+		bool dff_mode = false, keepff = false, cleanup = true;
 		bool show_tempdir = false, sop_mode = false;
 		bool cirkit_dress = false;
 		vector<int> lut_costs;
@@ -1623,10 +1598,6 @@ struct CirkitPass : public Pass {
 				}
 				continue;
 			}
-			if (arg == "-fast") {
-				fast_mode = true;
-				continue;
-			}
 			if (arg == "-dff") {
 				dff_mode = true;
 				continue;
@@ -1690,7 +1661,7 @@ struct CirkitPass : public Pass {
 
 			if (!dff_mode || !clk_str.empty()) {
 				cirkit_module(design, mod, script_file, exe_file, liberty_file, constr_file, cleanup, lut_costs, dff_mode, clk_str, keepff,
-						delay_target, sop_inputs, sop_products, lutin_shared, fast_mode, mod->selected_cells(), show_tempdir, sop_mode, cirkit_dress);
+						delay_target, sop_inputs, sop_products, lutin_shared, mod->selected_cells(), show_tempdir, sop_mode, cirkit_dress);
 				continue;
 			}
 
@@ -1835,7 +1806,7 @@ struct CirkitPass : public Pass {
 				en_polarity = std::get<2>(it.first);
 				en_sig = assign_map(std::get<3>(it.first));
 				cirkit_module(design, mod, script_file, exe_file, liberty_file, constr_file, cleanup, lut_costs, !clk_sig.empty(), "$",
-						keepff, delay_target, sop_inputs, sop_products, lutin_shared, fast_mode, it.second, show_tempdir, sop_mode, cirkit_dress);
+						keepff, delay_target, sop_inputs, sop_products, lutin_shared, it.second, show_tempdir, sop_mode, cirkit_dress);
 				assign_map.set(mod);
 			}
 		}
