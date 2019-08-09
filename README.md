@@ -15,6 +15,8 @@ Installation
 
 Usage
 -----
+
+Execute CirKit scripts:
 ```bash
 $ cat example.v
 ```
@@ -48,4 +50,15 @@ CIRKIT RESULTS:        internal signals:      739
 CIRKIT RESULTS:           input signals:       16
 CIRKIT RESULTS:          output signals:       16
 [...]
+```
+
+Verify the transformations executed by `cirkit`:
+```bash
+$ ./yosys -p "prep; techmap; cirkit -nocleanup -showtmp -script opt.cs; write_verilog example_yosys.v" example.v
+$ cec -c "cec _tmp_yosys-cirkit-*/input.blif _tmp_yosys-cirkit-*/output.blif"
+```
+```bash
+ABC command line: "cec -n _tmp_yosys-cirkit-*/input.blif _tmp_yosys-cirkit-*/output.blif".
+
+Networks are equivalent.  Time =     0.15 sec
 ```
