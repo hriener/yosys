@@ -700,10 +700,17 @@ void cirkit_module(RTLIL::Design *design, RTLIL::Module *current_module, std::st
 			module->name.c_str(), replace_tempdir(tempdir_name, tempdir_name, show_tempdir).c_str());
 
 	std::string cirkit_script = stringf("read_blif -l %s/input.blif\n", tempdir_name.c_str());
-	cirkit_script += stringf("ps\n");
-	cirkit_script += stringf("lut_resynthesis --strategy=0\n");
-	cirkit_script += stringf("ps\n");
-	cirkit_script += stringf("write_blif %s/output.blif", tempdir_name.c_str());
+
+        /* embed script file */
+        std::string line;
+        std::ifstream ifs( script_file, std::ios::in );
+        while ( std::getline( ifs, line ) )
+        {
+          cirkit_script += line + "\n";
+        }
+        ifs.close();
+
+	cirkit_script += stringf("write_blif -m %s/output.blif", tempdir_name.c_str());
 
 	FILE *f = fopen(stringf("%s/cirkit.script", tempdir_name.c_str()).c_str(), "wt");
 	fprintf(f, "%s\n", cirkit_script.c_str());
