@@ -8,15 +8,16 @@ For further information, see
 * yosys: a framework for RTL synthesis, http://www.clifford.at/yosys/
 
 Installation
-------------
+============
 - First, `yosys` has to be build in the usual way
 - Then, `cirkit` has to be build
 - Finally, the `cirkit` executable needs to be copied to the `yosys` directory and renamed to `yosys-cirkit`
 
 Usage
------
+=====
 
-Execute CirKit scripts:
+Execute CirKit scripts
+----------------------
 ```bash
 $ cat example.v
 ```
@@ -52,7 +53,8 @@ CIRKIT RESULTS:          output signals:       16
 [...]
 ```
 
-Verify the transformations executed by `mockturtle`/`cirkit`:
+Verify the transformations executed by the script
+-------------------------------------------------
 ```bash
 $ ./yosys -p "prep; techmap; cirkit -nocleanup -showtmp -script opt.cs; write_verilog example_yosys.v" example.v
 $ cec -c "cec _tmp_yosys-cirkit-*/input.blif _tmp_yosys-cirkit-*/output.blif"
@@ -63,7 +65,8 @@ ABC command line: "cec -n _tmp_yosys-cirkit-*/input.blif _tmp_yosys-cirkit-*/out
 Networks are equivalent.  Time =     0.15 sec
 ```
 
-End-to-end equivalence checking:
+End-to-end equivalence checking
+-------------------------------
 ```bash
 $ ./yosys
 read_verilog example.v; prep -flatten -top top; splitnets -ports; design -stash gold
