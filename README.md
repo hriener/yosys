@@ -30,7 +30,7 @@ endmodule // top
 ```bash
 $ cat opt.cs
 ```
-```bash
+```text
 ps -l
 lut_resynthesis --strategy=0
 ps -m
@@ -40,7 +40,7 @@ cut_rewrite -m --strategy=0
 ```bash
 $ ./yosys -p "prep; techmap; cirkit -script opt.cs; write_verilog example_yosys.v" example.v
 ```
-```bash
+```text
 [...]
 CIRKIT: LUT network   i/o = 16/16   gates = 630   level = 28
 CIRKIT: MIG   i/o = 16/16   gates = 680   level = 54
@@ -60,7 +60,7 @@ $ ./yosys -p "prep; techmap; cirkit -nocleanup -showtmp -script opt.cs; write_ve
 $ ./abc -c "cec _tmp_yosys-cirkit-*/input.blif _tmp_yosys-cirkit-*/output.blif"
 ```
 
-```bash
+```text
 ABC command line: "cec -n _tmp_yosys-cirkit-*/input.blif _tmp_yosys-cirkit-*/output.blif".
 
 Networks are equivalent.  Time =     0.15 sec
@@ -69,7 +69,10 @@ Networks are equivalent.  Time =     0.15 sec
 End-to-end equivalence checking
 -------------------------------
 ```bash
-$ ./yosys
+$ cat verify.ys
+```
+
+```text
 read_verilog example.v; prep -flatten -top top; splitnets -ports; design -stash gold
 read_verilog example_yosys.v; prep -flatten -top top; splitnets -ports; design -stash gate
 design -copy-from gold -as gold top
@@ -84,6 +87,10 @@ equiv_status -assert
 ```
 
 ```bash
+$ ./yosys verify.ys
+```
+
+```text
 11. Executing EQUIV_SIMPLE pass.
 Found 16 unproven $equiv cells (16 groups) in equiv:
 [...]
