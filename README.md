@@ -35,6 +35,7 @@ ps -l
 lut_resynthesis --strategy=0
 ps -m
 cut_rewrite -m --strategy=0
+ps -m
 ```
 
 ```bash
