@@ -52,7 +52,7 @@ CIRKIT RESULTS:          output signals:       16
 [...]
 ```
 
-Verify the transformations executed by `cirkit`:
+Verify the transformations executed by `mockturtle`/`cirkit`:
 ```bash
 $ ./yosys -p "prep; techmap; cirkit -nocleanup -showtmp -script opt.cs; write_verilog example_yosys.v" example.v
 $ cec -c "cec _tmp_yosys-cirkit-*/input.blif _tmp_yosys-cirkit-*/output.blif"
@@ -61,4 +61,36 @@ $ cec -c "cec _tmp_yosys-cirkit-*/input.blif _tmp_yosys-cirkit-*/output.blif"
 ABC command line: "cec -n _tmp_yosys-cirkit-*/input.blif _tmp_yosys-cirkit-*/output.blif".
 
 Networks are equivalent.  Time =     0.15 sec
+```
+
+End-to-end equivalence checking:
+```bash
+$ ./yosys
+read_verilog example.v; prep -flatten -top top; splitnets -ports; design -stash gold
+read_verilog example_yosys.v; prep -flatten -top top; splitnets -ports; design -stash gate
+design -copy-from gold -as gold top
+design -copy-from gate -as gate top
+equiv_make gold gate equiv
+prep -flatten -top equiv
+opt_clean -purge
+opt -full
+equiv_simple -seq 5
+equiv_induct -seq 5
+equiv_status -assert
+```
+
+```bash
+11. Executing EQUIV_SIMPLE pass.
+Found 16 unproven $equiv cells (16 groups) in equiv:
+[...]
+Proved 0 previously unproven $equiv cells.
+
+12. Executing EQUIV_INDUCT pass.
+Found 16 unproven $equiv cells in module equiv:
+[...]
+Proved 16 previously unproven $equiv cells.
+
+Found 16 $equiv cells in equiv:
+  Of those cells 16 are proven and 0 are unproven.
+  Equivalence successfully proven!
 ```
