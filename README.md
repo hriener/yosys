@@ -57,8 +57,9 @@ Verify the transformations executed by the script
 -------------------------------------------------
 ```bash
 $ ./yosys -p "prep; techmap; cirkit -nocleanup -showtmp -script opt.cs; write_verilog example_yosys.v" example.v
-$ ./abc/cec -c "cec _tmp_yosys-cirkit-*/input.blif _tmp_yosys-cirkit-*/output.blif"
+$ ./abc -c "cec _tmp_yosys-cirkit-*/input.blif _tmp_yosys-cirkit-*/output.blif"
 ```
+
 ```bash
 ABC command line: "cec -n _tmp_yosys-cirkit-*/input.blif _tmp_yosys-cirkit-*/output.blif".
 
