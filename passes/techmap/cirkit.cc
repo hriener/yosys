@@ -653,7 +653,7 @@ void cirkit_module(RTLIL::Design *design, RTLIL::Module *current_module, std::st
         }
         ifs.close();
 
-	cirkit_script += stringf("write_blif -m %s/output.blif", tempdir_name.c_str());
+	cirkit_script += stringf("write_blif %s/output.blif", tempdir_name.c_str());
 
 	FILE *f = fopen(stringf("%s/cirkit.script", tempdir_name.c_str()).c_str(), "wt");
 	fprintf(f, "%s\n", cirkit_script.c_str());
