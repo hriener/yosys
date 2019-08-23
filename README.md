@@ -8,15 +8,16 @@ For further information, see
 * yosys: a framework for RTL synthesis, http://www.clifford.at/yosys/
 
 Installation
-------------
+============
 - First, `yosys` has to be build in the usual way
 - Then, `cirkit` has to be build
 - Finally, the `cirkit` executable needs to be copied to the `yosys` directory and renamed to `yosys-cirkit`
 
 Usage
------
+=====
 
-Execute CirKit scripts:
+Execute CirKit scripts
+----------------------
 ```bash
 $ cat example.v
 ```
@@ -29,17 +30,18 @@ endmodule // top
 ```bash
 $ cat opt.cs
 ```
-```bash
+```text
 ps -l
 lut_resynthesis --strategy=0
 ps -m
 cut_rewrite -m --strategy=0
+ps -m
 ```
 
 ```bash
 $ ./yosys -p "prep; techmap; cirkit -script opt.cs; write_verilog example_yosys.v" example.v
 ```
-```bash
+```text
 [...]
 CIRKIT: LUT network   i/o = 16/16   gates = 630   level = 28
 CIRKIT: MIG   i/o = 16/16   gates = 680   level = 54
@@ -52,13 +54,55 @@ CIRKIT RESULTS:          output signals:       16
 [...]
 ```
 
-Verify the transformations executed by `cirkit`:
+Verify the transformations executed by the script
+-------------------------------------------------
 ```bash
 $ ./yosys -p "prep; techmap; cirkit -nocleanup -showtmp -script opt.cs; write_verilog example_yosys.v" example.v
-$ cec -c "cec _tmp_yosys-cirkit-*/input.blif _tmp_yosys-cirkit-*/output.blif"
+$ ./abc -c "cec _tmp_yosys-cirkit-*/input.blif _tmp_yosys-cirkit-*/output.blif"
 ```
-```bash
+
+```text
 ABC command line: "cec -n _tmp_yosys-cirkit-*/input.blif _tmp_yosys-cirkit-*/output.blif".
 
 Networks are equivalent.  Time =     0.15 sec
+```
+
+End-to-end equivalence checking
+-------------------------------
+```bash
+$ cat verify.ys
+```
+
+```text
+read_verilog example.v; prep -flatten -top top; splitnets -ports; design -stash gold
+read_verilog example_yosys.v; prep -flatten -top top; splitnets -ports; design -stash gate
+design -copy-from gold -as gold top
+design -copy-from gate -as gate top
+equiv_make gold gate equiv
+prep -flatten -top equiv
+opt_clean -purge
+opt -full
+equiv_simple -seq 5
+equiv_induct -seq 5
+equiv_status -assert
+```
+
+```bash
+$ ./yosys verify.ys
+```
+
+```text
+11. Executing EQUIV_SIMPLE pass.
+Found 16 unproven $equiv cells (16 groups) in equiv:
+[...]
+Proved 0 previously unproven $equiv cells.
+
+12. Executing EQUIV_INDUCT pass.
+Found 16 unproven $equiv cells in module equiv:
+[...]
+Proved 16 previously unproven $equiv cells.
+
+Found 16 $equiv cells in equiv:
+  Of those cells 16 are proven and 0 are unproven.
+  Equivalence successfully proven!
 ```
